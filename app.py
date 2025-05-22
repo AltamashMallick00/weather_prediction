@@ -72,3 +72,13 @@ if st.button("Predict Weather"):
 
     st.subheader("🌡️ Predicted Average Temperature")
     st.write(f"**{temp_prediction:.2f} °C**")
+@st.cache_resource
+def load_models():
+    try:
+        temp_reg = joblib.load("models/avgtemp_reg_compressed.pkl")
+        rain_clf = joblib.load("models/rain_today_clf_compressed.pkl")
+        loc_enc = joblib.load("models/loc_encoder_compressed.pkl")
+        return rain_clf, temp_reg, loc_enc
+    except Exception as e:
+        st.error(f"❌ Error loading models: {e}")
+        raise e
