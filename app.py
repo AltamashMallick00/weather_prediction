@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-import numpy as np # Ensure numpy is imported if using pd.isna
+import numpy as np
 
 # --- Configuration ---
 DATA_PATH = "weatherAUS.csv"
@@ -19,6 +19,10 @@ def load_data():
         if not os.path.exists(DATA_PATH):
             return None
         df = pd.read_csv(DATA_PATH, parse_dates=["Date"])
+        # Extract Year, Month, Day from the Date column
+        df['Year'] = df['Date'].dt.year
+        df['Month'] = df['Date'].dt.month
+        df['Day'] = df['Date'].dt.day
         return df
     except Exception as e:
         return None
@@ -32,7 +36,7 @@ def load_models():
             raise FileNotFoundError(f"Model file not found: {TEMP_REG_MODEL_PATH}")
         if not os.path.exists(RAIN_CLF_MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {RAIN_CLF_MODEL_PATH}")
-        if not os.path.exists(LOC_ENC_MODEL_PATH): # Corrected from LOC_ENC_ENC_MODEL_PATH
+        if not os.path.exists(LOC_ENC_MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {LOC_ENC_MODEL_PATH}")
 
         temp_reg = joblib.load(TEMP_REG_MODEL_PATH)
@@ -62,55 +66,59 @@ if clf is None or reg is None or le is None:
     st.stop()
 
 st.title("🌦️ Weather Prediction App")
-st.markdown("This app predicts **rain today** and **average temperature** based on input features.")
+st.markdown("Enter the desired location and date to get the weather prediction.")
 
-# User inputs
+# --- User Inputs: Location, Year, Month, Day ---
 available_locations = sorted(df["Location"].dropna().unique())
 if not available_locations:
     st.error("No valid locations found in the dataset.")
     st.stop()
 
+# Get available years from the DataFrame
+available_years = sorted(df["Year"].dropna().unique())
+if not available_years:
+    st.error("No valid years found in the dataset.")
+    st.stop()
+
+
 location = st.selectbox("Select Location", available_locations)
+year = st.selectbox("Select Year", available_years) # Added Year input
 month = st.selectbox("Select Month", list(range(1, 13)))
 day = st.selectbox("Select Day", list(range(1, 32)))
 
-min_temp_min = float(df["MinTemp"].min()) if not pd.isna(df["MinTemp"].min()) else -10.0
-min_temp_max = float(df["MinTemp"].max()) if not pd.isna(df["MinTemp"].max()) else 40.0
-max_temp_min = float(df["MaxTemp"].min()) if not pd.isna(df["MaxTemp"].min()) else 0.0
-max_temp_max = float(df["MaxTemp"].max()) if not pd.isna(df["MaxTemp"].max()) else 50.0
-pressure_min = int(df["Pressure9am"].min()) if not pd.isna(df["Pressure9am"].min()) else 980
-pressure_max = int(df["Pressure9am"].max()) if not pd.isna(df["Pressure9am"].max()) else 1050
-wind_speed_max = int(df["WindSpeed9am"].max()) if not pd.isna(df["WindSpeed9am"].max()) else 100
-
-min_temp = st.slider("Min Temperature (°C)", min_temp_min, min_temp_max, float(df["MinTemp"].mean()) if not pd.isna(df["MinTemp"].mean()) else 10.0)
-max_temp = st.slider("Max Temperature (°C)", max_temp_min, max_temp_max, float(df["MaxTemp"].mean()) if not pd.isna(df["MaxTemp"].mean()) else 20.0)
-humidity = st.slider("Humidity at 9am (%)", 0, 100, 70)
-pressure = st.slider("Pressure at 9am (hPa)", pressure_min, pressure_max, int(df["Pressure9am"].mean()) if not pd.isna(df["Pressure9am"].mean()) else 1010)
-wind_speed = st.slider("Wind Speed at 9am (km/h)", 0, wind_speed_max, int(df["WindSpeed9am"].mean()) if not pd.isna(df["WindSpeed9am"].mean()) else 20)
+# --- Default values for features not controlled by the user ---
+default_min_temp = float(df["MinTemp"].mean()) if not pd.isna(df["MinTemp"].mean()) else 10.0
+default_max_temp = float(df["MaxTemp"].mean()) if not pd.isna(df["MaxTemp"].mean()) else 20.0
+default_humidity = int(df["Humidity9am"].mean()) if not pd.isna(df["Humidity9am"].mean()) else 70
+default_pressure = int(df["Pressure9am"].mean()) if not pd.isna(df["Pressure9am"].mean()) else 1010
+default_wind_speed = int(df["WindSpeed9am"].mean()) if not pd.isna(df["WindSpeed9am"].mean()) else 20
 
 # Encode location
 if hasattr(le, 'classes_') and location in le.classes_:
     encoded_location = le.transform([location])[0]
 else:
-    st.warning("⚠️ Location not recognized by encoder. Defaulting to 0 for prediction.")
+    st.warning(f"⚠️ Location '{location}' not recognized by encoder. Defaulting to 0 for prediction.")
     encoded_location = 0
 
-# Prepare input for models
+# Prepare input for models using user inputs and default values
 input_data = pd.DataFrame([{
-    "Location_Encoded": encoded_location, # <--- CHANGED THIS LINE
-    "MinTemp": min_temp,
-    "MaxTemp": max_temp,
-    "Humidity9am": humidity,
-    "Pressure9am": pressure,
-    "WindSpeed9am": wind_speed,
+    "Location_Encoded": encoded_location,
+    "MinTemp": default_min_temp,
+    "MaxTemp": default_max_temp,
+    "Humidity9am": default_humidity,
+    "Pressure9am": default_pressure,
+    "WindSpeed9am": default_wind_speed,
+    "Year": year,  # Included Year in input_data
     "Month": month,
     "Day": day
 }])
 
-# Prediction
+# Prediction button
 if st.button("Predict Weather"):
     with st.spinner("Making predictions..."):
         try:
+            # Ensure your models were trained with 'Year' as a feature.
+            # If not, you might need to retrain them or adjust your model's expected features.
             rain_prediction = clf.predict(input_data)[0]
             temp_prediction = reg.predict(input_data)[0]
 
