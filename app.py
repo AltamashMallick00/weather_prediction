@@ -27,6 +27,19 @@ def load_data():
         st.error(f"❌ Error loading data: {e}")
         return None
 
+
+
+import streamlit as st
+import os
+
+# Temporary debug code
+st.write("Current directory:", os.getcwd())
+st.write("Model files exist:", {
+    "temp_reg": os.path.exists(TEMP_REG_MODEL_PATH),
+    "rain_clf": os.path.exists(RAIN_CLF_MODEL_PATH),
+    "loc_enc": os.path.exists(LOC_ENC_MODEL_PATH)
+})
+
 # Load models safely with st.cache_resource
 @st.cache_resource(show_spinner="Loading machine learning models...")
 def load_models():
