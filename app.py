@@ -6,7 +6,7 @@ from datetime import datetime
 # ——— 1. Load data to get location list —————————————————————
 @st.cache_data
 def load_data():
-    df = pd.read_csv("WeatherAus.csv", parse_dates=["Date"])
+    df = pd.read_csv("weatherAUS.csv", parse_dates=["Date"])
     return df
 
 df = load_data()
