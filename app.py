@@ -11,9 +11,9 @@ def load_data():
 # Load models
 @st.cache_resource
 def load_models():
-    temp_reg = joblib.load("models/avgtemp_reg.pkl")
-    rain_clf = joblib.load("models/rain_today_clf.pkl")
-    loc_enc = joblib.load("models/loc_encoder.pkl")
+    temp_reg = joblib.load("models/avgtemp_reg_compressed.pkl")
+    rain_clf = joblib.load("models/rain_today_clf_compressed.pkl")
+    loc_enc = joblib.load("models/loc_encoder_compressed.pkl")
     return rain_clf, temp_reg, loc_enc
 
 # Load everything
