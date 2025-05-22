@@ -16,8 +16,8 @@ locations = sorted(df["Location"].unique())
 @st.cache_resource
 def load_models():
    rain_clf = joblib.load("models/rain_today_clf.pkl")
-temp_reg = joblib.load("models/avgtemp_reg.pkl")
-label_encoder = joblib.load("models/loc_encoder.pkl")
+   temp_reg = joblib.load("models/avgtemp_reg.pkl")
+   label_encoder = joblib.load("models/loc_encoder.pkl")
 
    return rain_clf, temp_reg, label_encoder
 
