@@ -1,61 +1,61 @@
 import streamlit as st
 import pandas as pd
 import joblib
-from datetime import datetime
 
-# ——— 1. Load data to get location list —————————————————————
+# Load dataset
 @st.cache_data
 def load_data():
     df = pd.read_csv("weatherAUS.csv", parse_dates=["Date"])
     return df
 
-df = load_data()
-locations = sorted(df["Location"].unique())
-
-# ——— 2. Load models & encoder ——————————————————————————
+# Load models
 @st.cache_resource
 def load_models():
-   rain_clf = joblib.load("models/rain_today_clf.pkl")
-   temp_reg = joblib.load("models/avgtemp_reg.pkl")
-   label_encoder = joblib.load("models/loc_encoder.pkl")
+    temp_reg = joblib.load("models/avgtemp_reg.pkl")
+    rain_clf = joblib.load("models/rain_today_clf.pkl")
+    loc_enc = joblib.load("models/loc_encoder.pkl")
+    return rain_clf, temp_reg, loc_enc
 
-   return rain_clf, temp_reg, label_encoder
-
+# Load everything
+df = load_data()
 clf, reg, le = load_models()
 
-# ——— 3. Sidebar inputs ———————————————————————————————
-st.sidebar.header("Forecast Inputs")
-date_input = st.sidebar.date_input("Select date", value=datetime.today())
-loc_input  = st.sidebar.selectbox("Select location", locations)
+st.title("🌦️ Weather Prediction App")
+st.markdown("This app predicts **rain today** and **average temperature** based on input features.")
 
-# ——— 4. Prepare feature vector —————————————————————————
-d = pd.to_datetime(date_input)
-loc_code = le.transform([loc_input])[0]
+# User inputs
+location = st.selectbox("Select Location", sorted(df["Location"].dropna().unique()))
+month = st.selectbox("Select Month", range(1, 13))
+day = st.selectbox("Select Day", range(1, 32))
 
-Xnew = pd.DataFrame({
-    "LocCode": [loc_code],
-    "Month":   [d.month],
-    "Day":     [d.day]
-})
+min_temp = st.slider("Min Temperature (°C)", float(df["MinTemp"].min()), float(df["MinTemp"].max()))
+max_temp = st.slider("Max Temperature (°C)", float(df["MaxTemp"].min()), float(df["MaxTemp"].max()))
+humidity = st.slider("Humidity at 9am (%)", 0, 100)
+pressure = st.slider("Pressure at 9am (hPa)", int(df["Pressure9am"].min()), int(df["Pressure9am"].max()))
+wind_speed = st.slider("Wind Speed at 9am (km/h)", 0, int(df["WindSpeed9am"].max()))
 
-# ——— 5. Run predictions ——————————————————————————————
-rain_pred = clf.predict(Xnew)[0]
-temp_pred = reg.predict(Xnew)[0]
+# Encode location
+encoded_location = le.transform([location])[0] if location in le.classes_ else 0
 
-# ——— 6. Display results —————————————————————————————
-st.title("🌦 WeatherAus Forecast")
-st.markdown(f"**Location:** {loc_input}    **Date:** {d.date()}")
+# Prepare input for models
+input_data = pd.DataFrame([{
+    "Location": encoded_location,
+    "MinTemp": min_temp,
+    "MaxTemp": max_temp,
+    "Humidity9am": humidity,
+    "Pressure9am": pressure,
+    "WindSpeed9am": wind_speed,
+    "Month": month,
+    "Day": day
+}])
 
-col1, col2 = st.columns(2)
-with col1:
-    st.subheader("RainToday")
-    st.write("☔ Yes" if rain_pred else "⛅ No")
-with col2:
-    st.subheader("Avg Temperature (°C)")
-    st.write(f"🌡 {temp_pred:.1f}")
+# Prediction
+if st.button("Predict Weather"):
+    rain_prediction = clf.predict(input_data)[0]
+    temp_prediction = reg.predict(input_data)[0]
 
-# ——— 7. (Optional) Show model metrics ————————————————————
-if st.sidebar.checkbox("Show model performance"):
-    st.sidebar.markdown("**RainToday Classifier**: Accuracy ~0.XX")
-    st.sidebar.markdown("**AvgTemp Regressor**: RMSE ~Y.YY °C")
+    st.subheader("🌧️ Rain Today Prediction")
+    st.write("Yes" if rain_prediction == 1 else "No")
 
+    st.subheader("🌡️ Predicted Average Temperature")
+    st.write(f"{temp_prediction:.2f} °C")
