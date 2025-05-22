@@ -1,8 +1,8 @@
-streamlit
-joblib==1.5.0
-scikit-learn==1.6.1
-pandas==2.2.2
-numpy==2.0.2
+scikit-learn==1.3.0
+joblib==1.3.0
+pandas==2.1.1
+numpy==1.24.3
+streamlit==1.26.0
 # Optional: Add other packages ONLY IF your app.py explicitly imports and uses them.
 # For example, if you use matplotlib for plotting:
 # matplotlib==3.10.0
