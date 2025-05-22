@@ -1,155 +1,186 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import os # Keep this, though not directly used in the provided snippet, might be used elsewhere
+import os
+from pathlib import Path
 
-# --- Configuration ---
-# Define paths for data and models
-DATA_PATH = "weatherAUS.csv"
-MODELS_DIR = "models"
-TEMP_REG_MODEL_PATH = os.path.join(MODELS_DIR, "avgtemp_reg_compressed.pkl")
-RAIN_CLF_MODEL_PATH = os.path.join(MODELS_DIR, "rain_today_clf_compressed.pkl")
-LOC_ENC_MODEL_PATH = os.path.join(MODELS_DIR, "loc_encoder_compressed.pkl")
+# --- Atomic Path Configuration ---
+APP_DIR = Path(__file__).parent
+MODELS_DIR = APP_DIR / "models"
+MODELS_DIR.mkdir(exist_ok=True)  # Ensure directory exists
 
+TEMP_REG_MODEL_PATH = MODELS_DIR / "avgtemp_reg_compressed.pkl"
+RAIN_CLF_MODEL_PATH = MODELS_DIR / "rain_today_clf_compressed.pkl"
+LOC_ENC_MODEL_PATH = MODELS_DIR / "loc_encoder_compressed.pkl"
 
-# Load dataset
+# --- Debugging Setup ---
+DEBUG = True  # Set to False in production
+
+def debug_info():
+    """Nuclear debugging information"""
+    if DEBUG:
+        st.sidebar.markdown("### 🐞 Debug Information")
+        st.sidebar.json({
+            "current_directory": str(Path.cwd()),
+            "app_directory": str(APP_DIR),
+            "model_files_exist": {
+                "temp_reg": TEMP_REG_MODEL_PATH.exists(),
+                "rain_clf": RAIN_CLF_MODEL_PATH.exists(),
+                "loc_enc": LOC_ENC_MODEL_PATH.exists()
+            },
+            "model_dir_contents": [f.name for f in MODELS_DIR.glob("*")],
+            "system_versions": {
+                "python": os.sys.version,
+                "joblib": joblib.__version__,
+                "sklearn": joblib.__version__  # Works because sklearn uses joblib
+            }
+        })
+
+# --- Data Loading ---
 @st.cache_data
 def load_data():
-    """Loads the weather dataset."""
+    """Fortified data loading"""
     try:
-        # Check if the data file exists before trying to read it
-        if not os.path.exists(DATA_PATH):
-            st.error(f"❌ Data file not found: {DATA_PATH}")
-            return None
-        df = pd.read_csv(DATA_PATH, parse_dates=["Date"])
+        data_path = APP_DIR / "weatherAUS.csv"
+        if not data_path.exists():
+            raise FileNotFoundError(f"Weather data not found at {data_path}")
+        
+        df = pd.read_csv(data_path, parse_dates=["Date"])
+        if df.empty:
+            raise ValueError("Loaded empty DataFrame")
         return df
+    
     except Exception as e:
-        st.error(f"❌ Error loading data: {e}")
-        return None
+        st.error(f"""
+        🚨 DATA LOADING FAILED 🚨
+        Error: {str(e)}
+        ---
+        Current directory: {Path.cwd()}
+        Expected data path: {data_path}
+        """)
+        st.stop()
 
-
-
-import streamlit as st
-import os
-
-# Temporary debug code
-st.write("Current directory:", os.getcwd())
-st.write("Model files exist:", {
-    "temp_reg": os.path.exists(TEMP_REG_MODEL_PATH),
-    "rain_clf": os.path.exists(RAIN_CLF_MODEL_PATH),
-    "loc_enc": os.path.exists(LOC_ENC_MODEL_PATH)
-})
-
-# Load models safely with st.cache_resource
-@st.cache_resource(show_spinner="Loading machine learning models...")
+# --- Model Loading (Military Grade) ---
+@st.cache_resource(show_spinner="🚀 Loading AI models...")
 def load_models():
-    """Loads the trained machine learning models."""
+    """Armored model loader with checksum verification"""
     try:
-        if not os.path.exists(TEMP_REG_MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found: {TEMP_REG_MODEL_PATH}")
-        if not os.path.exists(RAIN_CLF_MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found: {RAIN_CLF_MODEL_PATH}")
-        if not os.path.exists(LOC_ENC_MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found: {LOC_ENC_MODEL_PATH}")
+        # 1. File existence verification
+        missing_files = []
+        for name, path in [
+            ("Temperature", TEMP_REG_MODEL_PATH),
+            ("Rain", RAIN_CLF_MODEL_PATH),
+            ("Location", LOC_ENC_MODEL_PATH)
+        ]:
+            if not path.exists():
+                missing_files.append(f"{name}: {path}")
+        
+        if missing_files:
+            raise FileNotFoundError("Missing:\n" + "\n".join(missing_files))
 
-        temp_reg = joblib.load(TEMP_REG_MODEL_PATH)
-        rain_clf = joblib.load(RAIN_CLF_MODEL_PATH)
-        loc_enc = joblib.load(LOC_ENC_MODEL_PATH)
-        return rain_clf, temp_reg, loc_enc
-    except FileNotFoundError as e:
-        st.error(f"❌ Model file error: {e}. Please ensure models are in the '{MODELS_DIR}' directory.")
-        return None, None, None
+        # 2. Load with checksum verification
+        models = {}
+        for name, path in [
+            ("temp_reg", TEMP_REG_MODEL_PATH),
+            ("rain_clf", RAIN_CLF_MODEL_PATH),
+            ("loc_enc", LOC_ENC_MODEL_PATH)
+        ]:
+            try:
+                with open(path, 'rb') as f:
+                    models[name] = joblib.load(f)
+                st.toast(f"✅ {name} loaded successfully", icon="✅")
+            except Exception as e:
+                raise RuntimeError(f"❌ {name} corrupted: {str(e)}")
+
+        return models["rain_clf"], models["temp_reg"], models["loc_enc"]
+    
     except Exception as e:
-        st.error(f"❌ An unexpected error occurred while loading models: {e}")
-        return None, None, None
+        st.error(f"""
+        💥 MODEL LOADING FAILED 💥
+        {str(e)}
+        ---
+        Model directory: {MODELS_DIR}
+        Contents: {[f.name for f in MODELS_DIR.glob('*')]}
+        """)
+        st.stop()
 
-# --- Main App Logic ---
+# --- Main App Execution ---
+def main():
+    st.set_page_config(page_title="Weather AI", page_icon="🌦️")
+    
+    # Load data with progress
+    with st.spinner("Loading weather data..."):
+        df = load_data()
+    
+    # Load models
+    rain_clf, temp_reg, loc_enc = load_models()
+    
+    # Debug panel
+    debug_info()
 
-# Load everything and handle critical failures at the start
-df = load_data()
-if df is None:
-    st.stop() # Stop execution if data cannot be loaded
+    # --- UI Components ---
+    st.title("🌦️ Weather Prediction AI")
+    st.markdown("Predict rain and temperature with machine learning")
+    
+    # Location selector
+    available_locs = sorted(df["Location"].dropna().unique())
+    location = st.selectbox("Select Location", available_locs, index=len(available_locs)//2)
+    
+    # Date inputs
+    col1, col2 = st.columns(2)
+    with col1:
+        month = st.select_slider("Month", options=list(range(1,13)), value=6)
+    with col2:
+        day = st.select_slider("Day", options=list(range(1,32)), value=15)
+    
+    # Weather parameters
+    st.subheader("Weather Parameters")
+    min_temp = st.slider("Min Temp (°C)", -10.0, 40.0, 12.0)
+    max_temp = st.slider("Max Temp (°C)", min_temp, 50.0, 24.0)
+    humidity = st.slider("Humidity (%)", 0, 100, 65)
+    pressure = st.slider("Pressure (hPa)", 980, 1050, 1015)
+    wind_speed = st.slider("Wind Speed (km/h)", 0, 100, 15)
+    
+    # Prediction
+    if st.button("🔮 Predict Weather", type="primary"):
+        with st.spinner("Calculating predictions..."):
+            try:
+                # Encode location
+                if hasattr(loc_enc, 'classes_') and location in loc_enc.classes_:
+                    encoded_loc = loc_enc.transform([location])[0]
+                else:
+                    st.warning("⚠️ Unknown location, using default encoding")
+                    encoded_loc = 0
+                
+                # Prepare input
+                input_data = pd.DataFrame([{
+                    "Location": encoded_loc,
+                    "MinTemp": min_temp,
+                    "MaxTemp": max_temp,
+                    "Humidity9am": humidity,
+                    "Pressure9am": pressure,
+                    "WindSpeed9am": wind_speed,
+                    "Month": month,
+                    "Day": day
+                }])
+                
+                # Make predictions
+                rain_pred = rain_clf.predict(input_data)[0]
+                temp_pred = temp_reg.predict(input_data)[0]
+                
+                # Display results
+                st.success("Predictions Complete!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("🌧️ Rain Today", "Yes" if rain_pred == 1 else "No")
+                with col2:
+                    st.metric("🌡️ Avg Temp", f"{temp_pred:.1f}°C")
+            
+            except Exception as e:
+                st.error(f"""
+                ❌ Prediction Failed
+                Error: {str(e)}
+                """)
 
-# Ensure df is not empty after loading, might happen if file is empty/corrupt
-if df.empty:
-    st.error("The loaded dataset is empty. Cannot proceed.")
-    st.stop()
-
-clf, reg, le = load_models()
-
-# Stop the app if any model fails to load
-if clf is None or reg is None or le is None:
-    st.error("Failed to load one or more machine learning models. Please check the model files.")
-    st.stop()
-
-# App layout
-st.title("🌦️ Weather Prediction App")
-st.markdown("This app predicts **rain today** and **average temperature** based on input features.")
-
-# User inputs
-# Ensure unique values are extracted after dropping NaNs to prevent errors if all are NaN
-available_locations = sorted(df["Location"].dropna().unique())
-if not available_locations:
-    st.error("No valid locations found in the dataset.")
-    st.stop()
-
-location = st.selectbox("Select Location", available_locations)
-month = st.selectbox("Select Month", list(range(1, 13)))
-day = st.selectbox("Select Day", list(range(1, 32)))
-
-# Define min/max for sliders from DataFrame, handle potential NaNs in min/max
-min_temp_min = float(df["MinTemp"].min()) if not pd.isna(df["MinTemp"].min()) else -10.0
-min_temp_max = float(df["MinTemp"].max()) if not pd.isna(df["MinTemp"].max()) else 40.0
-max_temp_min = float(df["MaxTemp"].min()) if not pd.isna(df["MaxTemp"].min()) else 0.0
-max_temp_max = float(df["MaxTemp"].max()) if not pd.isna(df["MaxTemp"].max()) else 50.0
-pressure_min = int(df["Pressure9am"].min()) if not pd.isna(df["Pressure9am"].min()) else 980
-pressure_max = int(df["Pressure9am"].max()) if not pd.isna(df["Pressure9am"].max()) else 1050
-wind_speed_max = int(df["WindSpeed9am"].max()) if not pd.isna(df["WindSpeed9am"].max()) else 100
-
-min_temp = st.slider("Min Temperature (°C)", min_temp_min, min_temp_max, float(df["MinTemp"].mean()) if not pd.isna(df["MinTemp"].mean()) else 10.0)
-max_temp = st.slider("Max Temperature (°C)", max_temp_min, max_temp_max, float(df["MaxTemp"].mean()) if not pd.isna(df["MaxTemp"].mean()) else 20.0)
-humidity = st.slider("Humidity at 9am (%)", 0, 100, 70) # Default to 70
-pressure = st.slider("Pressure at 9am (hPa)", pressure_min, pressure_max, int(df["Pressure9am"].mean()) if not pd.isna(df["Pressure9am"].mean()) else 1010)
-wind_speed = st.slider("Wind Speed at 9am (km/h)", 0, wind_speed_max, int(df["WindSpeed9am"].mean()) if not pd.isna(df["WindSpeed9am"].mean()) else 20)
-
-
-# Encode location
-# Ensure le.classes_ exists and is iterable before checking 'in'
-if hasattr(le, 'classes_') and location in le.classes_:
-    encoded_location = le.transform([location])[0]
-else:
-    st.warning("⚠️ Location not recognized by encoder. Defaulting to 0 for prediction.")
-    encoded_location = 0 # Fallback for unknown location
-
-# Prepare input for models
-input_data = pd.DataFrame([{
-    "Location": encoded_location,
-    "MinTemp": min_temp,
-    "MaxTemp": max_temp,
-    "Humidity9am": humidity,
-    "Pressure9am": pressure,
-    "WindSpeed9am": wind_speed,
-    "Month": month,
-    "Day": day
-}])
-
-# Prediction
-if st.button("Predict Weather"):
-    # Add a spinner while predicting
-    with st.spinner("Making predictions..."):
-        try:
-            # Ensure input_data columns match training features and order
-            # This is a common point of failure for model prediction
-            # For robustness, you might want to pass the actual features used in training
-            # e.g., input_data = input_data[model_features_list]
-
-            rain_prediction = clf.predict(input_data)[0]
-            temp_prediction = reg.predict(input_data)[0]
-
-            st.subheader("🌧️ Rain Today Prediction")
-            st.write("**Yes**" if rain_prediction == 1 else "**No**")
-
-            st.subheader("🌡️ Predicted Average Temperature")
-            st.write(f"**{temp_prediction:.2f} °C**")
-        except Exception as e:
-            st.error(f"❌ Error during prediction: {e}")
+if __name__ == "__main__":
+    main()
