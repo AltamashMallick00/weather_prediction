@@ -37,7 +37,7 @@ def load_models():
         if not os.path.exists(RAIN_CLF_MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {RAIN_CLF_MODEL_PATH}")
         if not os.path.exists(LOC_ENC_MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found: {LOC_ENC_ENC_MODEL_PATH}")
+            raise FileNotFoundError(f"Model file not found: {LOC_ENC_MODEL_PATH}")
 
         temp_reg = joblib.load(TEMP_REG_MODEL_PATH)
         rain_clf = joblib.load(RAIN_CLF_MODEL_PATH)
