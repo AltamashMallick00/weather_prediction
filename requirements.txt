@@ -1,8 +1,8 @@
-# requirements.txt
+numpy==1.26.4
+pandas==2.1.1
 scikit-learn==1.3.0
 joblib==1.3.0
-pandas==2.1.1
-numpy==1.26.4  # Critical fix for Streamlit Cloud
+pyarrow==14.0.1
 # Optional: Add other packages ONLY IF your app.py explicitly imports and uses them.
 # For example, if you use matplotlib for plotting:
 # matplotlib==3.10.0
