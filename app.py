@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-import numpy as np # Ensure numpy is imported
+import numpy as np
 from datetime import datetime
 import sys
 import sklearn
@@ -38,10 +38,9 @@ def load_models():
     st.info(f"Pandas Version: {pd.__version__}")
     st.info(f"Scikit-learn Version: {sklearn.__version__}")
     st.info(f"Joblib Version: {joblib.__version__}")
-    st.info("-------------------------------------") # End debug info
+    st.info("-------------------------------------")
 
     try:
-        # No need for individual file found messages in production, assuming they load
         temp_reg = joblib.load(TEMP_REG_MODEL_PATH)
         rain_clf = joblib.load(RAIN_CLF_MODEL_PATH)
         loc_enc = joblib.load(LOC_ENC_MODEL_PATH)
@@ -57,37 +56,43 @@ def load_models():
 df = load_data()
 if df is None:
     st.error("❌ Failed to load the dataset. Please check `weatherAUS.csv` file.")
-    st.stop() # Stops the app if data load fails
+    st.stop()
 
 if df.empty:
     st.error("The loaded dataset is empty. Cannot proceed.")
-    st.stop() # Stops the app if dataset is empty
+    st.stop()
 
 clf, reg, le = load_models()
 if clf is None or reg is None or le is None:
     st.error("❌ Failed to load one or more machine learning models. Please check the model files and dependencies.")
-    st.stop() # Stops the app if model load fails
+    st.stop()
 
 st.title("🌦️ Weather Prediction App")
 st.markdown("Enter the desired location and date to get the weather prediction.")
 
-
 # --- User Input Widgets ---
-unique_locations = sorted(df["Location"].unique())
-selected_location = st.selectbox("Select Location:", unique_locations)
+# Restrict locations to those seen by the encoder (prevents unseen-label errors)
+known_locations = sorted(le.classes_)
+selected_location = st.selectbox("Select Location:", known_locations)
 
-# Default date to today, or a sensible date if data is old
+# Default date
 today = datetime.now().date()
-default_date = datetime(2026, 5, 22).date() # Or a date within your training data range for better prediction
+default_date = datetime(2026, 5, 22).date()
 selected_date = st.date_input("Select Date:", value=default_date)
-
 
 if st.button("Predict Weather"):
     if selected_location and selected_date:
+        # Encode safely (should never fail now, since dropdown is restricted)
+        try:
+            location_encoded = le.transform([selected_location])[0]
+        except ValueError:
+            st.warning(f"⚠️ Location '{selected_location}' not recognized. Using default encoding.")
+            location_encoded = -1  # Fallback if encoder mismatch
+
         # Prepare input features
         input_data = pd.DataFrame({
-            'Location_Encoded': [le.transform([selected_location])[0]],
-            'MinTemp': [df['MinTemp'].mean()], # Use mean of training data for missing inputs
+            'Location_Encoded': [location_encoded],
+            'MinTemp': [df['MinTemp'].mean()],
             'MaxTemp': [df['MaxTemp'].mean()],
             'Humidity9am': [df['Humidity9am'].mean()],
             'Pressure9am': [df['Pressure9am'].mean()],
@@ -97,14 +102,12 @@ if st.button("Predict Weather"):
             'Day': [selected_date.day]
         })
 
-        # Ensure columns are in the same order as training data
-        # Get feature names from the model's training (X_temp and X_rain from train_model.py)
-        # Assuming you used these features:
+        # Keep feature order consistent
         feature_cols = ["Location_Encoded", "MinTemp", "MaxTemp", "Humidity9am",
                         "Pressure9am", "WindSpeed9am", "Year", "Month", "Day"]
         input_data = input_data[feature_cols]
 
-        # Make predictions
+        # Predictions
         predicted_avg_temp = reg.predict(input_data)[0]
         rain_today_prediction = clf.predict(input_data)[0]
         rain_today_label = "Yes" if rain_today_prediction == 1 else "No"
